@@ -1,0 +1,27 @@
+{
+  "name": "ark-home",
+  "version": "0.1.0",
+  "description": "Persistent AI assistant for every household — the software layer of Element Ark",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "ark-home": "src/index.ts"
+  },
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@ruvector/sona": "file:/home/flexnetos/Workspace/node_modules/@ruvector/sona",
+    "@ruvector/router": "file:/home/flexnetos/Workspace/node_modules/@ruvector/router",
+    "@ruvector/router-linux-x64-gnu": "file:/home/flexnetos/Workspace/node_modules/@ruvector/router-linux-x64-gnu",
+    "@ruvector/rvf": "file:/home/flexnetos/Workspace/node_modules/@ruvector/rvf",
+    "@ruvector/rvf-node": "file:/home/flexnetos/Workspace/node_modules/@ruvector/rvf-node",
+    "@cognitum/gate": "file:/home/flexnetos/Workspace/RuVector-main/npm/packages/cognitum-gate-wasm"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

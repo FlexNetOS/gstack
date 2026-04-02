@@ -385,3 +385,63 @@ The active skill lives at `~/.claude/skills/gstack/`. After making changes:
 Or copy the binaries directly:
 - `cp browse/dist/browse ~/.claude/skills/gstack/browse/dist/browse`
 - `cp design/dist/design ~/.claude/skills/gstack/design/dist/design`
+
+## gstack skills
+
+Use the `/browse` skill from gstack for all web browsing. NEVER use `mcp__claude-in-chrome__*` tools.
+
+If gstack skills aren't working, run `cd .claude/skills/gstack && ./setup` to build the binary and register skills.
+
+### Available skills
+
+- `/office-hours` — YC Office Hours (startup diagnostic + builder brainstorm)
+- `/plan-ceo-review` — CEO/founder-mode plan review
+- `/plan-eng-review` — Eng manager-mode plan review
+- `/plan-design-review` — Designer's eye plan review
+- `/design-consultation` — Design system from scratch
+- `/design-shotgun` — Visual design exploration (multiple variants)
+- `/design-html` — Production-quality HTML/CSS from designs
+- `/review` — Pre-landing PR review
+- `/ship` — Ship workflow (test, review, bump, PR)
+- `/land-and-deploy` — Merge PR, deploy, verify production
+- `/canary` — Post-deploy canary monitoring
+- `/benchmark` — Performance regression detection
+- `/browse` — Headless browser for QA and dogfooding
+- `/connect-chrome` — Launch real Chrome with Side Panel extension
+- `/qa` — QA test + fix bugs
+- `/qa-only` — QA report only (no fixes)
+- `/design-review` — Visual QA + fix loop
+- `/setup-browser-cookies` — Import browser cookies for authenticated testing
+- `/setup-deploy` — Configure deployment settings
+- `/retro` — Weekly engineering retrospective
+- `/investigate` — Systematic root-cause debugging
+- `/document-release` — Post-ship doc updates
+- `/codex` — Multi-AI second opinion via OpenAI Codex
+- `/cso` — Security audit (OWASP + STRIDE)
+- `/autoplan` — Auto-review pipeline (CEO → design → eng)
+- `/careful` — Safety guardrails for destructive commands
+- `/freeze` — Restrict edits to a directory
+- `/guard` — Full safety mode (careful + freeze)
+- `/unfreeze` — Remove freeze restriction
+- `/gstack-upgrade` — Upgrade gstack to latest
+- `/learn` — Manage project learnings
+
+## Skill routing
+
+When the user's request matches an available skill, ALWAYS invoke it using the Skill
+tool as your FIRST action. Do NOT answer directly, do NOT use other tools first.
+The skill has specialized workflows that produce better results than ad-hoc answers.
+
+Key routing rules:
+- Product ideas, "is this worth building", brainstorming → invoke office-hours
+- Bugs, errors, "why is this broken", 500 errors → invoke investigate
+- Ship, deploy, push, create PR → invoke ship
+- QA, test the site, find bugs → invoke qa
+- Code review, check my diff → invoke review
+- Update docs after shipping → invoke document-release
+- Weekly retro → invoke retro
+- Design system, brand → invoke design-consultation
+- Visual audit, design polish → invoke design-review
+- Architecture review → invoke plan-eng-review
+- Save progress, checkpoint, resume → invoke checkpoint
+- Code quality, health check → invoke health
