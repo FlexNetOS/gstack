@@ -103,6 +103,21 @@ export class NetworkProvider implements ResourceProvider {
     const url = String(args.url || '');
     if (!url) throw new Error('Missing required arg: url');
 
+    // SSRF protection: restrict to http/https, block metadata and private ranges
+    try {
+      const parsed = new URL(url);
+      if (!['http:', 'https:'].includes(parsed.protocol)) {
+        throw new Error(`Blocked protocol: ${parsed.protocol}`);
+      }
+      const host = parsed.hostname;
+      if (host === '169.254.169.254' || host.startsWith('fd') || host === '::1') {
+        throw new Error('Blocked: metadata/link-local address');
+      }
+    } catch (err) {
+      if (err instanceof TypeError) throw new Error(`Invalid URL: ${url}`);
+      throw err;
+    }
+
     const start = Date.now();
     try {
       const resp = await fetch(url, {

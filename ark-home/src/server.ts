@@ -1,37 +1,79 @@
 // Ark Home — HTTP API Server
-// Resource orchestration daemon on port 7700. No terminal UI.
+// Resource orchestration daemon on port 7700. Localhost-only by default.
 // JSON API for conversation, search, stats, resources, health.
 
 import type { Conversation } from './conversation';
 import type { ArkHomeConfig, Context } from './types';
 import type { ResourceRegistry } from './providers/index';
+import type { PermissionManager } from './permissions';
+import { randomBytes } from 'crypto';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 
 export interface ServerHandle {
   port: number;
+  token: string;
   stop: () => void;
+}
+
+/** Load or generate a bearer token for API authentication. */
+function loadOrCreateToken(configDir: string): string {
+  const tokenPath = join(configDir, 'api-token');
+  try {
+    if (existsSync(tokenPath)) {
+      return readFileSync(tokenPath, 'utf-8').trim();
+    }
+  } catch { /* regenerate */ }
+
+  const token = randomBytes(32).toString('hex');
+  const dir = dirname(tokenPath);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(tokenPath, token, { mode: 0o600 });
+  return token;
 }
 
 export function startServer(
   conversation: Conversation,
   config: ArkHomeConfig,
   resources?: ResourceRegistry,
+  permissions?: PermissionManager,
 ): ServerHandle {
   const port = config.mcpPort || 7700;
+  const configDir = join(process.env.HOME || '/root', '.ark-home');
+  const token = loadOrCreateToken(configDir);
 
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': 'http://localhost',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
+
+  function checkAuth(req: Request): boolean {
+    // Health endpoint is public
+    const url = new URL(req.url);
+    if (url.pathname === '/api/health') return true;
+
+    const auth = req.headers.get('authorization');
+    return auth === `Bearer ${token}`;
+  }
 
   const server = Bun.serve({
     port,
+    hostname: '127.0.0.1',
     fetch: async (req) => {
       const url = new URL(req.url);
       const path = url.pathname;
 
       if (req.method === 'OPTIONS') {
         return new Response(null, { status: 204, headers: corsHeaders });
+      }
+
+      // Auth check (health is public, everything else requires token)
+      if (!checkAuth(req)) {
+        return Response.json(
+          { error: 'Unauthorized. Include Authorization: Bearer <token> header.' },
+          { status: 401, headers: corsHeaders },
+        );
       }
 
       try {
@@ -127,6 +169,22 @@ export function startServer(
             ? await req.json() as Record<string, unknown>
             : {};
 
+          // Permission check
+          if (permissions) {
+            const provider = resources.get(providerName);
+            if (provider) {
+              const actionDef = provider.actions().find(a => a.name === action);
+              const destructive = actionDef?.destructive ?? true;
+              const check = permissions.check(providerName, action, conversation.context, destructive);
+              if (!check.permitted) {
+                return Response.json(
+                  { error: `Permission denied: ${check.reason}` },
+                  { status: 403, headers: corsHeaders },
+                );
+              }
+            }
+          }
+
           const result = await resources.execute(providerName, action, body);
           return Response.json(result, { headers: corsHeaders });
         }
@@ -146,14 +204,19 @@ export function startServer(
         }, { status: 404, headers: corsHeaders });
 
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Internal server error';
-        return Response.json({ error: message }, { status: 500, headers: corsHeaders });
+        // Log details server-side, return generic error to client
+        console.error('[ark-home] Request error:', err);
+        return Response.json(
+          { error: 'Internal server error' },
+          { status: 500, headers: corsHeaders },
+        );
       }
     },
   });
 
   return {
     port: server.port,
+    token,
     stop: () => server.stop(),
   };
 }

@@ -80,12 +80,12 @@ export class DockerProvider implements ResourceProvider {
   }
 
   private async inspectContainer(args: Record<string, unknown>) {
-    const id = requireArg(args, 'id');
+    const id = requireContainerId(args);
     return this.dockerFetch(`/containers/${id}/json`);
   }
 
   private async containerLogs(args: Record<string, unknown>) {
-    const id = requireArg(args, 'id');
+    const id = requireContainerId(args);
     const tail = Number(args.tail) || 100;
     const resp = await this.dockerFetchRaw(`/containers/${id}/logs?stdout=true&stderr=true&tail=${tail}`);
     if (!resp) return { logs: '' };
@@ -96,24 +96,24 @@ export class DockerProvider implements ResourceProvider {
   }
 
   private async containerStats(args: Record<string, unknown>) {
-    const id = requireArg(args, 'id');
+    const id = requireContainerId(args);
     return this.dockerFetch(`/containers/${id}/stats?stream=false`);
   }
 
   private async startContainer(args: Record<string, unknown>) {
-    const id = requireArg(args, 'id');
+    const id = requireContainerId(args);
     await this.dockerFetchRaw(`/containers/${id}/start`, 'POST');
     return { action: 'started', container: id };
   }
 
   private async stopContainer(args: Record<string, unknown>) {
-    const id = requireArg(args, 'id');
+    const id = requireContainerId(args);
     await this.dockerFetchRaw(`/containers/${id}/stop`, 'POST');
     return { action: 'stopped', container: id };
   }
 
   private async restartContainer(args: Record<string, unknown>) {
-    const id = requireArg(args, 'id');
+    const id = requireContainerId(args);
     await this.dockerFetchRaw(`/containers/${id}/restart`, 'POST');
     return { action: 'restarted', container: id };
   }
@@ -157,4 +157,12 @@ function requireArg(args: Record<string, unknown>, name: string): string {
   const val = args[name];
   if (!val || typeof val !== 'string') throw new Error(`Missing required arg: ${name}`);
   return val;
+}
+
+function requireContainerId(args: Record<string, unknown>): string {
+  const id = requireArg(args, 'id');
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(id)) {
+    throw new Error(`Invalid container ID format: ${id}`);
+  }
+  return id;
 }

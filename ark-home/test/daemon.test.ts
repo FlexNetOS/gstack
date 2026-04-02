@@ -5,6 +5,7 @@ import { Conversation } from '../src/conversation';
 import { startServer } from '../src/server';
 import { ResourceRegistry } from '../src/providers/index';
 import { FsProvider } from '../src/providers/fs';
+import { PermissionManager } from '../src/permissions';
 import { DEFAULT_CONFIG } from '../src/types';
 import { mkdtempSync, writeFileSync, mkdirSync } from 'fs';
 import { tmpdir } from 'os';
@@ -21,7 +22,8 @@ const config = {
 };
 
 let baseUrl: string;
-let handle: { port: number; stop: () => void };
+let handle: { port: number; token: string; stop: () => void };
+let authHeaders: Record<string, string>;
 let conversation: Conversation;
 let resources: ResourceRegistry;
 let origCwd: string;
@@ -34,8 +36,12 @@ beforeAll(async () => {
   resources = new ResourceRegistry();
   resources.register(new FsProvider({ roots: [tmpDir], allowWrite: true, maxReadSize: 1024 * 1024 }));
   await resources.initAll();
-  handle = startServer(conversation, config, resources);
-  baseUrl = `http://localhost:${handle.port}`;
+  const perms = new PermissionManager(tmpDir);
+  // Allow write for tests
+  perms.addGlobalRule({ provider: 'fs', action: 'write', allowed: true });
+  handle = startServer(conversation, config, resources, perms);
+  baseUrl = `http://127.0.0.1:${handle.port}`;
+  authHeaders = { 'Authorization': `Bearer ${handle.token}` };
 });
 
 afterAll(() => {
@@ -59,7 +65,7 @@ describe('conversation API', () => {
   test('POST /api/message requires content', async () => {
     const resp = await fetch(`${baseUrl}/api/message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({}),
     });
     expect(resp.status).toBe(400);
@@ -68,7 +74,7 @@ describe('conversation API', () => {
   test('POST /api/message accepts valid input', async () => {
     const resp = await fetch(`${baseUrl}/api/message`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ content: 'hello from test' }),
     });
     expect(resp.status).toBe(200);
@@ -81,7 +87,7 @@ describe('conversation API', () => {
   test('POST /api/context switches context', async () => {
     const resp = await fetch(`${baseUrl}/api/context`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ context: 'personal' }),
     });
     expect(resp.status).toBe(200);
@@ -92,26 +98,26 @@ describe('conversation API', () => {
   test('POST /api/context rejects invalid', async () => {
     const resp = await fetch(`${baseUrl}/api/context`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ context: 'invalid' }),
     });
     expect(resp.status).toBe(400);
   });
 
   test('GET /api/stats returns stats', async () => {
-    const resp = await fetch(`${baseUrl}/api/stats`);
+    const resp = await fetch(`${baseUrl}/api/stats`, { headers: authHeaders });
     expect(resp.status).toBe(200);
     const body = await resp.json() as Record<string, unknown>;
     expect(typeof body.total).toBe('number');
   });
 
   test('GET /api/search requires q param', async () => {
-    const resp = await fetch(`${baseUrl}/api/search`);
+    const resp = await fetch(`${baseUrl}/api/search`, { headers: authHeaders });
     expect(resp.status).toBe(400);
   });
 
   test('GET /api/search returns results', async () => {
-    const resp = await fetch(`${baseUrl}/api/search?q=hello`);
+    const resp = await fetch(`${baseUrl}/api/search?q=hello`, { headers: authHeaders });
     expect(resp.status).toBe(200);
     const body = await resp.json() as { results: unknown[]; count: number };
     expect(Array.isArray(body.results)).toBe(true);
@@ -120,7 +126,7 @@ describe('conversation API', () => {
 
 describe('resource API', () => {
   test('GET /api/resources lists providers', async () => {
-    const resp = await fetch(`${baseUrl}/api/resources`);
+    const resp = await fetch(`${baseUrl}/api/resources`, { headers: authHeaders });
     expect(resp.status).toBe(200);
     const body = await resp.json() as { providers: { name: string }[] };
     expect(body.providers.length).toBeGreaterThan(0);
@@ -130,7 +136,7 @@ describe('resource API', () => {
   test('POST /api/resources/fs/list works', async () => {
     const resp = await fetch(`${baseUrl}/api/resources/fs/list`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ path: tmpDir }),
     });
     expect(resp.status).toBe(200);
@@ -145,7 +151,7 @@ describe('resource API', () => {
 
     const resp = await fetch(`${baseUrl}/api/resources/fs/read`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ path: testFile }),
     });
     expect(resp.status).toBe(200);
@@ -157,7 +163,7 @@ describe('resource API', () => {
     const testFile = join(tmpDir, 'test-write.txt');
     const resp = await fetch(`${baseUrl}/api/resources/fs/write`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({ path: testFile, content: 'written by daemon' }),
     });
     expect(resp.status).toBe(200);
@@ -170,7 +176,7 @@ describe('resource API', () => {
   test('POST /api/resources/unknown/action returns 500', async () => {
     const resp = await fetch(`${baseUrl}/api/resources/nonexistent/action`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...authHeaders },
       body: JSON.stringify({}),
     });
     expect(resp.status).toBe(500);
@@ -178,8 +184,13 @@ describe('resource API', () => {
 });
 
 describe('404 handling', () => {
+  test('unauthenticated request returns 401', async () => {
+    const resp = await fetch(`${baseUrl}/api/stats`);
+    expect(resp.status).toBe(401);
+  });
+
   test('unknown route returns 404 with route list', async () => {
-    const resp = await fetch(`${baseUrl}/api/nonexistent`);
+    const resp = await fetch(`${baseUrl}/api/nonexistent`, { headers: authHeaders });
     expect(resp.status).toBe(404);
     const body = await resp.json() as { routes: string[] };
     expect(Array.isArray(body.routes)).toBe(true);

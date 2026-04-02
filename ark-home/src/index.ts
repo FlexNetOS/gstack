@@ -51,8 +51,9 @@ async function main() {
   console.log('[ark-home] Initializing providers...');
   await resources.initAll();
 
-  const handle = startServer(conversation, config, resources);
-  console.log(`[ark-home] Daemon listening on http://localhost:${handle.port}`);
+  const handle = startServer(conversation, config, resources, permissions);
+  console.log(`[ark-home] Daemon listening on http://127.0.0.1:${handle.port}`);
+  console.log(`[ark-home] API token: ${handle.token.slice(0, 8)}...`);
   console.log('[ark-home] Providers:', resources.list().map(p => p.name).join(', '));
 
   const stats = conversation.stats();

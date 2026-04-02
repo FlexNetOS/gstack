@@ -7,7 +7,7 @@
 // since @ruvector/rvf-mcp-server is not installed. The CLI is the source
 // of truth and always available at ~/.cargo/bin/rvf.
 
-import { spawn, execSync } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
 import { existsSync, writeFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
@@ -52,7 +52,7 @@ function defaultRvfBinary(): string {
 
 function runRvf(binary: string, args: string[]): string {
   try {
-    const result = execSync(`"${binary}" ${args.join(' ')}`, {
+    const result = execFileSync(binary, args, {
       encoding: 'utf-8',
       timeout: 30_000,
     });
