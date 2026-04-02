@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.2.0] - 2026-04-02 — Ark Home Daemon
+
+Your household now has a persistent AI daemon. Ark Home runs on port 7700, orchestrates local infrastructure (filesystem, Docker, network), and never forgets a conversation. One agent for personal, business, and home contexts with cryptographic audit trails, self-learning, and safety gates.
+
+### Added
+
+- **Ark Home daemon.** Resource orchestration daemon on port 7700 with 7 API endpoints (health, message, search, stats, context, resources, resource actions). Replaces the terminal chat app from Phase 1.
+- **Resource providers.** Plugin framework for local infrastructure. Ships with filesystem (read/list/search/write with root-based access control), Docker (containers, images, logs, start/stop/restart via socket), and network (port scanning, service health checks, Ark Home peer discovery).
+- **Permission model.** Default read-only policy. Per-context and global rules. Destructive actions require explicit opt-in. Wired into every resource request.
+- **Bearer token auth.** Auto-generated token on first run, stored at `~/.ark-home/api-token`. All endpoints except health require `Authorization: Bearer <token>`.
+- **Localhost-only binding.** Server binds to 127.0.0.1, CORS restricted to localhost. No network exposure by default.
+- **Persistent AI core.** Triple-layer memory (JSONL + rvf vectors + witness chain), SONA self-learning, SemanticRouter with 8 intents, Cognitum Gate safety checks.
+- **62 tests.** Daemon lifecycle, API endpoints, provider framework, permissions, conversation, memory, witness chain.
+
+### Security
+
+- Shell injection fixed (execFileSync instead of execSync in MCP bridge)
+- Docker container ID validation (blocks API path traversal)
+- SSRF protection in network provider (scheme + metadata endpoint blocking)
+- Error messages sanitized (internal details logged, generic response to clients)
+
 ## [0.15.1.0] - 2026-04-01 — Design Without Shotgun
 
 You can now run `/design-html` without having to run `/design-shotgun` first. The skill detects what design context exists (CEO plans, design review artifacts, approved mockups) and asks how you want to proceed. Start from a plan, a description, or a provided PNG, not just an approved mockup.
